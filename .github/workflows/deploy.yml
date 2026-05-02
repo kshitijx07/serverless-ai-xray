@@ -77,22 +77,25 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Build Frontend
-        working-directory: ./frontend
-        run: |
-          npm ci
-          npm run build
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
           terraform_wrapper: false
 
+      - name: Build Frontend
+        working-directory: ./frontend
+        run: |
+          cd ../infrastructure
+          terraform init
+          export VITE_API_URL=$(terraform output -raw api_gateway_url)
+          cd ../frontend
+          npm ci
+          VITE_API_URL=$VITE_API_URL npm run build
+
       - name: Deploy to S3 and CloudFront
         run: |
           cd infrastructure
-          terraform init
           export BUCKET_NAME=$(terraform output -raw frontend_bucket_name)
           export CF_ID=$(terraform output -raw cloudfront_distribution_id)
           cd ../frontend
