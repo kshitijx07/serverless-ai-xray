@@ -25,6 +25,7 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
+          terraform_wrapper: false
 
       - name: Install Node.js for Lambdas
         uses: actions/setup-node@v3
@@ -86,6 +87,7 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
+          terraform_wrapper: false
 
       - name: Deploy to S3 and CloudFront
         run: |
