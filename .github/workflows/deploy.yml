@@ -1,0 +1,90 @@
+name: Deploy Serverless AI X-ray Analyzer
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-infrastructure:
+    name: Deploy Infrastructure and Backend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Install Node.js for Lambdas
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Python for Lambdas
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Terraform Init
+        working-directory: ./infrastructure
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: ./infrastructure
+        run: terraform apply -auto-approve
+
+      - name: Get API URL
+        working-directory: ./infrastructure
+        run: echo "API_URL=$(terraform output -raw api_gateway_url)" >> $GITHUB_ENV
+
+  deploy-frontend:
+    name: Build and Deploy Frontend
+    needs: deploy-infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Build Frontend
+        working-directory: ./frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Deploy to S3 and CloudFront
+        run: |
+          cd infrastructure
+          terraform init
+          export BUCKET_NAME=$(terraform output -raw frontend_bucket_name)
+          export CF_ID=$(terraform output -raw cloudfront_distribution_id)
+          cd ../frontend
+          aws s3 sync dist/ s3://$BUCKET_NAME --delete
+          aws cloudfront create-invalidation --distribution-id $CF_ID --paths "/*"
