@@ -36,6 +36,14 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Build Python Lambda Package
+        run: |
+          mkdir -p backend/functions/processImage/package
+          pip install --target ./backend/functions/processImage/package tflite-runtime Pillow numpy
+          cp backend/functions/processImage/lambda_function.py backend/functions/processImage/package/
+          cd backend/functions/processImage/package
+          zip -r ../../../../infrastructure/modules/lambda/processImage.zip .
+
       - name: Terraform Init
         working-directory: ./infrastructure
         run: terraform init
